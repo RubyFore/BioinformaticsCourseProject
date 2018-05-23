@@ -1,32 +1,17 @@
-library("GEOsearch")
-library("SummarizedExperiment")
-library("tidyr")
-library("cqn")
-library("EDASeq")
-library("stringr")
-library('scales')
-library("EnsDb.Hsapiens.v86")
+
 
 
 op <- par()
 
-load(file.path("SRP043085", "rse_gene.Rdata"))
-
-# Getting the column data
-colDat<- colData(rse_gene)
-#Putting the counts into their own datafram
-counts <- assays(rse_gene)$counts
-
+source("~/School/PHP2620_Bioinformatics/FinalProject/loadData.R")
 
 #### EXPLORATORY ANALYSIS ####
 
-# making shorter column of response type
-colData(rse_gene)$responseType <- c(rep('normal', 8), rep('resistance', 8), rep('sensitive', 4))
-colData(rse_gene)$responseType <- as.factor(colData(rse_gene)$responseType)
-colData(rse_gene)$index <- 1:20
 # barplot of lib size by tissue response type
 LibSize = colSums(counts) 
 plot(LibSize~colData(rse_gene)$responseType)
+
+
 
 # outlier in Library size is the very first sample
 which(LibSize==min(LibSize))
@@ -48,10 +33,10 @@ for (i in 1:20){
 #hist(zeros)
 percentzeros <- zeros/58037
 nonzeros <- 58037-zeros
-colors<- c(rep('pink', 8), rep('purple', 8), rep('blue', 4))
+colors<- c(rep('red', 8), rep('green', 8), rep('blue', 4))
 barplot(zeros, names.arg=paste0(round(percentzeros, digits=2)*100, "%"), legend.text=c('normal', 'resistant', 'sensitive'),col=colors, 
         main="Percent 0 count by sample", ylab="Number of samples with zero count", xlab = "% of total",
-        las=2, ylim=c(0,50000), args.legend = list(fill=c('pink', 'purple', 'blue')))
+        las=2, ylim=c(0,50000), args.legend = list(fill=c('red', 'green', 'blue')))
 
 
 # Average expression ratios comparing the three groups 
@@ -92,9 +77,9 @@ singleIds <- Ids[multipleMask]
 #### NORMALIZATION ####
 # want to use cqn. But requires read length and gc content. 
 #gcLengthInfo <- getGeneLengthAndGCContent(Ids,'hsa', mode='biomart')
-df <- as.data.frame(gcLengthInfo)
+#df <- as.data.frame(gcLengthInfo)
 # https://support.bioconductor.org/p/58846/ page with hack for how to do this. 
-saveRDS(df, file="/Users/rubyfore/School/PHP2620_Bioinformatics/FinalProject/gcLengthInfo.Rdata")
+#saveRDS(df, file="/Users/rubyfore/School/PHP2620_Bioinformatics/FinalProject/gcLengthInfo.Rdata")
 gcLengthInfo <- readRDS("/Users/rubyfore/School/PHP2620_Bioinformatics/FinalProject/gcLengthInfo.Rdata")
 
 zerolengthM <- !is.na(gcLengthInfo$length)
@@ -110,13 +95,15 @@ colors<- c(rep('red', 8), rep('green', 8), rep('blue', 4))
 cqnplot(cqnObj, n = 1, xlab = "GC content", lty = 1, col=colors)
 legend("topright", legend=c('normal', 'resistant', 'sensitive'),  fill=c('red', 'green', 'blue'))
 cqnplot(cqnObj, n = 2, xlab = "length", lty = 1, col=colors)
-legend("topright", legend=c('normal', 'resistant', 'sensitive'),  fill=c('red', 'green', 'blue'))
+legend("bottomright", legend=c('normal', 'resistant', 'sensitive'),  fill=c('red', 'green', 'blue'))
 
 
 #### WHAT AM I DOING HERE??????
 RPKM.cqn <- cqnObj$y + cqnObj$offset
-RPM <- sweep(log2(counts + 1), 2, log2(LibSize/10^6))
-RPKM.std <- sweep(RPM, 1, log2(as.data.frame(gcLengthInfo)$length / 10^3))
+zerolengthM <- !is.na(gcLengthInfo$length)
+RPM <- sweep(log2(counts[zerolengthM,] + 1), 2, log2(LibSize/10^6))
+
+RPKM.std <- sweep(RPM, 1, log2(as.data.frame(gcLengthInfo[zerolengthM,])$length / 10^3))
 
 
 normalMask <- colDat$responseType=="normal"
@@ -125,7 +112,7 @@ sensMask <- colDat$responseType=="sensitive"
 
 
 # MA plots for normal versus sensitive
- whGenes <- which(rowMeans(RPKM.std) >= 2 & as.data.frame(gcLengthInfo)$length >= 100)
+ whGenes <- which(rowMeans(RPKML.std) >= 2 & as.data.frame(gcLengthInfo)$length >= 100)
  cqnWhGenes<-which(rowMeans(RPKM.cqn) >= 2 & as.data.frame(cqnGCLengthInfo)$length >= 100) 
  M.std <- rowMeans(RPKM.std[whGenes, normalMask]) - rowMeans(RPKM.std[whGenes, sensMask])
  A.std <- rowMeans(RPKM.std[whGenes,])
